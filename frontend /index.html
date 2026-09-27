@@ -1,1 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. Mobile Edition</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #050b14;
+            color: #00d2ff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 100vh;
+            padding: 30px 20px;
+            overflow: hidden;
+        }
 
+        /* Futuristic HUD Header */
+        .hud-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+            padding-bottom: 10px;
+        }
+        .system-title {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* Central Arc Reactor Visualizer */
+        .reactor-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+        }
+        .arc-reactor {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 4px double #00d2ff;
+            box-shadow: 0 0 25px rgba(0, 210, 255, 0.6), inset 0 0 25px rgba(0, 210, 255, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .arc-reactor:active {
+            transform: scale(0.95);
+        }
+        .arc-reactor.pulse {
+            animation: reactorPulse 1.5s infinite alternate;
+        }
+        .reactor-core {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffffff 20%, #00d2ff 70%);
+            box-shadow: 0 0 35px #00d2ff;
+        }
+
+        @keyframes reactorPulse {
+            0% { box-shadow: 0 0 20px rgba(0, 210, 255, 0.4); transform: scale(1); }
+            100% { box-shadow: 0 0 45px rgba(0, 210, 255, 0.9); transform: scale(1.05); }
+        }
+
+        /* Interface Outputs & Console Panels */
+        .console-panel {
+            width: 100%;
+            max-width: 450px;
+            background: rgba(10, 25, 47, 0.85);
+            border: 1px solid #00d2ff;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        .transcript-log {
+            font-size: 0.85rem;
+            color: #8892b0;
+            margin-bottom: 8px;
+            min-height: 20px;
+            font-style: italic;
+        }
+        .response-text {
+            font-size: 1rem;
+            min-height: 60px;
+            max-height: 140px;
+            overflow-y: auto;
+            line-height: 1.4;
+        }
+
+        /* Control Tray */
+        .controls {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 12px;
+            background: #020c1b;
+            border: 1px solid rgba(0, 210, 255, 0.4);
+            color: #ffffff;
+            font-family: inherit;
+            border-radius: 4px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d2ff;
+            box-shadow: 0 0 8px rgba(0, 210, 255, 0.4);
+        }
+        button {
+            background: transparent;
+            border: 1px solid #00d2ff;
+            color: #00d2ff;
+            padding: 0 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: rgba(0, 210, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top HUD Display Data -->
+    <div class="hud-header">
+        <div class="system-title">System: J.A.R.V.I.S. Mobile</div>
+        <div id="statusIndicator">STATUS: ONLINE</div>
+    </div>
+
+    <!-- Interactive Glowing Voice Activation Core -->
+    <div class="reactor-container">
+        <div class="arc-reactor" id="micButton" onclick="toggleVoiceRecognition()">
+            <div class="reactor-core"></div>
+        </div>
+    </div>
+
+    <!-- Main Output Monitor -->
+    <div class="console-panel">
+        <div class="transcript-log" id="speechTranscript">Tap the core or type below to command...</div>
+        <div class="response-text" id="jarvisOutput">Welcome back, sir. Systems are operational.</div>
+    </div>
+
+    <!-- Text-based Fallback Inputs -->
+    <div class="controls">
+        <input type="text" id="textInput" placeholder="Enter manual matrix command..." autocomplete="off">
+        <button onclick="handleTextCommand()">Execute</button>
+    </div>
+
+<script>
+    // System Configurations
+    const API_KEY = "YOUR_API_KEY_HERE"; 
+    const API_URL = `https://googleapis.com{API_KEY}`;
+    
+    // Core Engine Instantiations
+    const outputDisplay = document.getElementById('jarvisOutput');
+    const transcriptDisplay = document.getElementById('speechTranscript');
+    const statusText = document.getElementById('statusIndicator');
+    const micBtn = document.getElementById('micButton');
+    const textInput = document.getElementById('textInput');
+
+    let isListening = false;
+    let SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            statusText.innerText = "STATUS: LISTENING...";
+            micBtn.classList.add('pulse');
+            transcriptDisplay.innerText = "Listening to input stream...";
+        };
+
+        recognition.onerror = (event) => {
+            console.error("Speech Error: ", event.error);
+            statusText.innerText = "STATUS: STREAMS FAULT";
+            resetMicState();
+        };
+
+        recognition.onend = () => {
+            resetMicState();
+        };
+
+        recognition.onresult = (event) => {
+            const spokenText = event.results[0][0].transcript;
+            transcriptDisplay.innerText = `You: "${spokenText}"`;
+            processBrainQuery(spokenText);
+        };
+    } else {
+        transcriptDisplay.innerText = "Speech Engine native support missing on this system framework.";
+    }
+
+    function toggleVoiceRecognition() {
+        if (!SpeechRecognition) return;
+        if (isListening) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    }
+
+    function resetMicState() {
+        isListening = false;
+        statusText.innerText = "STATUS: ONLINE";
+        micBtn.classList.remove('pulse');
+    }
+
+    function handleTextCommand() {
+        const textCommand = textInput.value.trim();
+        if (textCommand) {
+            transcriptDisplay.innerText = `You: "${textCommand}"`;
+            textInput.value = "";
+            processBrainQuery(textCommand);
+        }
+    }
+
+    // Connects interface inputs directly to API Brain Core
+    async function processBrainQuery(query) {
+        if (API_KEY === "YOUR_API_KEY_HERE") {
+            speakAndDisplay("System alert. Sir, you must replace the placeholder inside the script block with a valid API key.");
+            return;
+        }
+
+        outputDisplay.innerText = "Processing vector thought patterns...";
+        statusText.innerText = "STATUS: PROCESSING BRAIN QUERY...";
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ 
+                            // Append instruction to make it talk concisely like JARVIS
+                            text: `Respond cleanly, professionally, and concisely as JARVIS from Iron Man. Limit the response to 1-3 sentences maximum. Command: ${query}` 
+                        }]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.candidates && data.candidates[0].content.parts[0].text) {
+                const systemReply = data.candidates[0].content.parts[0].text;
+                speakAndDisplay(systemReply);
+                statusText.innerText = "STATUS: ONLINE";
+            } else {
+                speakAndDisplay("Forgive me sir, I experienced an anomaly parsing the response array.");
+            }
+        } catch (error) {
+            console.error(error);
+            speakAndDisplay("Connection array severed. Unable to link up with core server components.");
+            statusText.innerText = "STATUS: DISCONNECTED";
+        }
+    }
+
+    // Audio Output Engine (Text-To-Speech conversion loop)
+    function speakAndDisplay(message) {
+        outputDisplay.innerText = message;
+        
+        // Cancel ongoing speak routines before starting a new one
+        window.speechSynthesis.cancel();
+        
+        const speechUtterance = new SpeechSynthesisUtterance(message);
+        
+        // Search system vocal nodes for a fitting aesthetic (British male preferred if loaded)
+        const systemVoices = window.speechSynthesis.getVoices();
